@@ -1,5 +1,6 @@
 /*
 * Copyright(c) 2012-2022 Intel Corporation
+* Copyright(c) 2023-2024 Huawei Technologies Co., Ltd.
 * SPDX-License-Identifier: BSD-3-Clause
 */
 
@@ -78,9 +79,6 @@ static inline void env_secure_free(const void *ptr, size_t size)
 /* *** ALLOCATOR *** */
 
 typedef struct _env_allocator env_allocator;
-
-env_allocator *env_allocator_create_extended(uint32_t size, const char *name,
-	int rpool_limit);
 
 env_allocator *env_allocator_create(uint32_t size, const char *name, bool zero);
 
@@ -401,9 +399,19 @@ static inline void env_atomic64_dec(env_atomic64 *a)
 	atomic64_dec(a);
 }
 
+static inline u64 env_atomic64_add_return(u64 i, env_atomic64 *a)
+{
+	return atomic64_add_return(i, a);
+}
+
 static inline u64 env_atomic64_inc_return(env_atomic64 *a)
 {
 	return atomic64_inc_return(a);
+}
+
+static inline u64 env_atomic64_dec_return(env_atomic64 *a)
+{
+	return (u64)atomic64_dec_return(a);
 }
 
 static inline u64 env_atomic64_cmpxchg(atomic64_t *a, u64 old, u64 new)
@@ -597,7 +605,7 @@ static inline int env_bit_test(int nr, const void *addr)
 #define env_strncmp(s1, slen1, s2, slen2) strncmp(s1, s2, \
 					min_t(size_t, slen1, slen2))
 #define env_strncpy(dest, dmax, src, slen) ({ \
-		strlcpy(dest, src, min_t(int, dmax, slen)); \
+		strscpy(dest, src, min_t(int, dmax, slen)); \
 		0; \
 	})
 
@@ -640,7 +648,7 @@ static inline void env_put_execution_context(unsigned ctx)
 
 static inline unsigned env_get_execution_context_count(void)
 {
-	return num_online_cpus();
+	return num_possible_cpus();
 }
 
 #endif /* __OCF_ENV_H__ */
