@@ -302,6 +302,29 @@ static int blkdev_handle_data_single(struct bd_object *bvol, struct bio *bio,
 	return 0;
 }
 
+uint32_t error_injeciton_io_enabled = 0;
+module_param(error_injeciton_io_enabled, uint, (S_IRUSR | S_IRGRP | S_IWUSR | S_IWGRP));
+
+uint32_t error_injeciton_io_threshold = 1048576;
+module_param(error_injeciton_io_threshold, uint, (S_IRUSR | S_IRGRP | S_IWUSR | S_IWGRP));
+
+static inline bool _error_injection(struct bio *bio)
+{
+	static uint32_t io_count = 0;
+
+	if (!error_injeciton_io_enabled)
+		return false;
+
+	if (CAS_BIO_BISIZE(bio) < error_injeciton_io_threshold)
+		return false;
+
+	if (io_count % 10 != 0)
+		return false;
+
+	return true;
+
+}
+
 static void blkdev_handle_data(struct bd_object *bvol, struct bio *bio)
 {
 	const uint32_t max_io_sectors = (32*MiB) >> SECTOR_SHIFT;
@@ -320,6 +343,12 @@ static void blkdev_handle_data(struct bd_object *bvol, struct bio *bio)
 			CAS_BIO_OP_FLAGS_FORMAT "\n",  CAS_BIO_OP_FLAGS(bio));
 		CAS_BIO_ENDIO(bio, CAS_BIO_BISIZE(bio),
 				CAS_ERRNO_TO_BLK_STS(-EINVAL));
+		return;
+	}
+
+	if (_error_injection(bio)) {
+		CAS_BIO_ENDIO(bio, CAS_BIO_BISIZE(bio),
+				CAS_ERRNO_TO_BLK_STS(-ENOMEM));
 		return;
 	}
 
