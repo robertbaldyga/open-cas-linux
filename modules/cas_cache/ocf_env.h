@@ -548,7 +548,8 @@ static inline void env_spinlock8_lock(env_spinlock8 *l)
 	uint32_t step = 0;
 
 	while (env_atomic8_cmpxchg(l, 0, 1)) {
-		OCF_COND_RESCHED_DEFAULT(step);
+	    if (unlikely(++step % 1000000))
+            cond_resched();
 	}
 }
 

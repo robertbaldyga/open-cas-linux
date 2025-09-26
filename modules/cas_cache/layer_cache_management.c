@@ -3213,7 +3213,7 @@ finalize_err:
 	return result;
 }
 
-void _cache_mngt_add_upper_cmpl(ocf_cache_t cache, ocf_cache_t lower_cache,
+static void _cache_mngt_add_upper_cmpl(ocf_cache_t cache, ocf_cache_t lower_cache,
 				 void *priv, int err)
 {
 	struct _cache_mngt_sync_context *ctx = priv;
