@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#include <linux/cpuhplock.h>
+#include <linux/cpuidle.h>
+
 #include "ocf_env_refcnt.h"
 #include "ocf/ocf_err.h"
 #include "ocf_env.h"
@@ -30,6 +33,9 @@ static void _env_refcnt_do_on_cpus(struct env_refcnt *rc,
 
 	ENV_BUG_ON(env_atomic_read(&rc->notify.to_notify));
 
+	cpus_read_lock();
+	cpuidle_pause_and_lock();
+
 	for_each_online_cpu(cpu_no) {
 		work = rc->notify.notify_work_items[cpu_no];
 
@@ -41,6 +47,9 @@ static void _env_refcnt_do_on_cpus(struct env_refcnt *rc,
 		queue_work_on(cpu_no, rc->notify.notify_work_queue,
 				&work->work);
 	}
+
+	cpuidle_resume_and_unlock();
+	cpus_read_unlock();
 
 	wait_event(rc->notify.notify_wait_queue,
 			!env_atomic_read(&rc->notify.to_notify));
