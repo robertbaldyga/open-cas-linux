@@ -19,6 +19,8 @@ struct bio_vec_iter {
 	struct bio_vec *ivec;
 };
 
+struct cas_wbt;
+
 struct blk_data {
 	/**
 	 * @brief Atomic counter for core device
@@ -44,6 +46,14 @@ struct blk_data {
 	 * @brief Timestamp of start processing request
 	 */
 	unsigned long long start_time;
+
+	/**
+	 * @brief Writeback throttling state, flags and timestamp of master
+	 *	request
+	 */
+	struct cas_wbt *wbt;
+	unsigned int wbt_flags;
+	u64 wbt_start;
 
 	/**
 	 * @brief Request data siz

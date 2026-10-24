@@ -43,6 +43,12 @@ module_param(seq_cut_off_mb, uint, (S_IRUSR | S_IRGRP));
 MODULE_PARM_DESC(seq_cut_off_mb,
 		"Sequential cut off threshold in MiB. 0 - disable");
 
+u32 wbt_lat_usec = 2000;
+module_param(wbt_lat_usec, uint, (S_IRUSR | S_IWUSR | S_IRGRP));
+MODULE_PARM_DESC(wbt_lat_usec,
+		"Target read latency in microseconds for exported objects "
+		"writeback throttling. 0 - disable");
+
 /* globals */
 ocf_ctx_t cas_ctx;
 
