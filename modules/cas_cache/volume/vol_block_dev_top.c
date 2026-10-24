@@ -197,6 +197,8 @@ static void blkdev_complete_data_master(struct blk_data *master, int error)
 	if (atomic_dec_return(&master->master_remaining))
 		return;
 
+	cas_wbt_done(master->wbt, master->wbt_flags, master->wbt_start);
+
 	cas_generic_end_io_acct(master->bio, master->start_time);
 
 	result = map_cas_err_to_generic(master->error);
@@ -227,6 +229,9 @@ struct blkdev_data_master_ctx {
 	struct bio *bio;
 	uint32_t master_size;
 	unsigned long long start_time;
+	struct cas_wbt *wbt;
+	unsigned int wbt_flags;
+	u64 wbt_start;
 };
 
 static int blkdev_handle_data_single(struct cas_priv_top *priv_top,
@@ -274,6 +279,9 @@ static int blkdev_handle_data_single(struct cas_priv_top *priv_top,
 		data->bio = master_ctx->bio;
 		data->master_size = master_ctx->master_size;
 		data->start_time = master_ctx->start_time;
+		data->wbt = master_ctx->wbt;
+		data->wbt_flags = master_ctx->wbt_flags;
+		data->wbt_start = master_ctx->wbt_start;
 		master_ctx->data = data;
 	}
 
@@ -311,6 +319,7 @@ static void blkdev_handle_data(struct cas_priv_top *priv_top, struct bio *bio)
 	struct blkdev_data_master_ctx master_ctx = {
 		.bio = bio,
 		.master_size = CAS_BIO_BISIZE(bio),
+		.wbt = &priv_top->wbt,
 	};
 
 	if (unlikely(CAS_BIO_BISIZE(bio) == 0)) {
@@ -331,6 +340,9 @@ static void blkdev_handle_data(struct cas_priv_top *priv_top, struct bio *bio)
 				CAS_ERRNO_TO_BLK_STS(-EINVAL));
 		return;
 	}
+
+	master_ctx.wbt_flags = cas_wbt_throttle(master_ctx.wbt, bio,
+			&master_ctx.wbt_start);
 
 	master_ctx.start_time = cas_generic_start_io_acct(bio);
 	for (sectors = bio_sectors(bio); sectors > 0;) {
@@ -356,10 +368,13 @@ static void blkdev_handle_data(struct cas_priv_top *priv_top, struct bio *bio)
 err:
 	if (split != bio)
 		bio_put(split);
-	if (master_ctx.data)
+	if (master_ctx.data) {
 		blkdev_complete_data_master(master_ctx.data, error);
-	else
+	} else {
+		cas_wbt_done(master_ctx.wbt, master_ctx.wbt_flags,
+				master_ctx.wbt_start);
 		CAS_BIO_ENDIO(bio, CAS_BIO_BISIZE(bio), CAS_ERRNO_TO_BLK_STS(error));
+	}
 }
 
 static void blkdev_complete_discard(ocf_io_t io, void *priv1, void *priv2,
@@ -568,6 +583,12 @@ static int kcas_create_exported_object(struct cas_priv_top *priv_top,
 		goto end;
 	}
 
+	result = cas_wbt_init(&priv_top->wbt, priv_top->expobj_wq);
+	if (result) {
+		destroy_workqueue(priv_top->expobj_wq);
+		goto end;
+	}
+
 	if (!claim) {
 		result = cas_exp_obj_create(&exp_obj, dsk, name, THIS_MODULE,
 				ops, priv);
@@ -576,6 +597,7 @@ static int kcas_create_exported_object(struct cas_priv_top *priv_top,
 				ops, priv);
 	}
 	if (result) {
+		cas_wbt_deinit(&priv_top->wbt);
 		destroy_workqueue(priv_top->expobj_wq);
 		goto end;
 	}
@@ -609,6 +631,7 @@ static int kcas_volume_destroy_exported_object(struct cas_priv_top *priv_top)
 		goto err;
 
 	priv_top->expobj_valid = false;
+	cas_wbt_deinit(&priv_top->wbt);
 	destroy_workqueue(priv_top->expobj_wq);
 
 	cas_exp_obj_unlock(priv_top->exp_obj);
@@ -687,6 +710,7 @@ int kcas_core_deposit_exported_object(ocf_core_t core)
 
 	cas_exp_obj_box_deposit(priv_top->exp_obj);
 
+	cas_wbt_deinit(&priv_top->wbt);
 	ocf_core_set_priv(core, NULL);
 	vfree(priv_top);
 
@@ -806,6 +830,7 @@ int kcas_cache_destroy_all_core_exported_objects(ocf_cache_t cache)
 		result = cas_exp_obj_dismantle(priv_top->exp_obj);
 		if (!result) {
 			priv_top->expobj_valid = false;
+			cas_wbt_deinit(&priv_top->wbt);
 			destroy_workqueue(priv_top->expobj_wq);
 		}
 
