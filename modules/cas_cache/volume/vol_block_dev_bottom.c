@@ -8,6 +8,7 @@
 #include <linux/blkdev.h>
 #include "cas_cache.h"
 #include "vol_block_dev_bottom.h"
+#include "vol_wbt.h"
 
 #define CAS_DEBUG_IO 0
 
@@ -140,6 +141,14 @@ CAS_DECLARE_BLOCK_CALLBACK(cas_bd_forward_end, struct bio *bio,
 	if (err == -EOPNOTSUPP && (CAS_BIO_OP_FLAGS(bio) & CAS_BIO_DISCARD))
 		err = 0;
 
+	/* Before ocf_forward_end(), which may free the data */
+	if (ocf_forward_is_core(token)) {
+		struct blk_data *data = ocf_forward_get_data(token);
+
+		if (data && data->wbt_core_start)
+			cas_wbt_core_done(data->wbt, bio, data->wbt_core_start);
+	}
+
 	ocf_forward_end(token, err);
 
 	bio_put(bio);
@@ -161,6 +170,10 @@ static void block_dev_forward_io(ocf_volume_t volume,
 	int error = 0;
 
 	CAS_DEBUG_PARAM("Address = %llu, bytes = %u\n", addr, bytes);
+
+	/* OCF internal data (cleaning, prefetch, metadata) has no wbt */
+	if (data->wbt && ocf_forward_is_core(token))
+		data->wbt_core_start = cas_wbt_core_issue(data->wbt, dir, flags);
 
 	cas_io_iter_init(&iter, data->vec, data->size);
 	if (offset != cas_io_iter_move(&iter, offset)) {

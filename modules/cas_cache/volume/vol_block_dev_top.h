@@ -11,6 +11,7 @@
 #include "ocf/ocf.h"
 #include "../linux_kernel_version.h"
 #include "../../cas_bd/exp_obj.h"
+#include "vol_wbt.h"
 
 struct cas_priv_top {
 	struct cas_exp_obj *exp_obj;
@@ -20,6 +21,9 @@ struct cas_priv_top {
 
 	ocf_volume_t front_volume;
 		/*< Cache/core front volume */
+
+	struct cas_wbt wbt;
+		/*< Writeback throttling state */
 
 	uint32_t expobj_valid : 1;
 		/*!< Bit indicates that exported object was created */

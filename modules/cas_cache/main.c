@@ -43,6 +43,26 @@ module_param(seq_cut_off_mb, uint, (S_IRUSR | S_IRGRP));
 MODULE_PARM_DESC(seq_cut_off_mb,
 		"Sequential cut off threshold in MiB. 0 - disable");
 
+u32 wbt_lat_usec = 0;
+module_param(wbt_lat_usec, uint, (S_IRUSR | S_IWUSR | S_IRGRP));
+MODULE_PARM_DESC(wbt_lat_usec,
+		"Target read latency in microseconds for exported objects "
+		"writeback throttling. 0 - disable");
+
+u32 wbt_core_feedback = 0;
+module_param(wbt_core_feedback, uint, (S_IRUSR | S_IWUSR | S_IRGRP));
+MODULE_PARM_DESC(wbt_core_feedback,
+		"Writeback throttling signal. 0 - read latency at the exported "
+		"object, 1 - latency of core reads (target wbt_lat_usec) and "
+		"core sync writes (target wbt_core_sync_lat_usec)");
+
+u32 wbt_core_sync_lat_usec = 0;
+module_param(wbt_core_sync_lat_usec, uint, (S_IRUSR | S_IWUSR | S_IRGRP));
+MODULE_PARM_DESC(wbt_core_sync_lat_usec,
+		"Target core sync write latency in microseconds for exported "
+		"objects writeback throttling with wbt_core_feedback=1. "
+		"0 - sync writes don't steer");
+
 /* globals */
 ocf_ctx_t cas_ctx;
 
