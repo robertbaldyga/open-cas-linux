@@ -2305,13 +2305,17 @@ static struct partition_config_col partition_config_columns[] = {
 	{ .name = "IO class name", .pos = -1 },
 	{ .name = "Eviction priority", .pos = -1 },
 	{ .name = "Allocation", .pos = -1 },
+	{ .name = "Cache mode", .pos = -1 },
 	{ .name = NULL }
 };
+
+/* Cache mode value of an IO class following the cache mode */
+#define PARTITION_CACHE_MODE_DEFAULT "default"
 
 void partition_list_line(FILE *out, struct kcas_io_class *cls, bool csv)
 {
 	char buffer[128];
-	const char *prio;
+	const char *prio, *cache_mode;
 	char allocation_str[MAX_STR_LEN];
 
 	snprintf(allocation_str, sizeof(allocation_str), "%d.%02d",
@@ -2324,8 +2328,16 @@ void partition_list_line(FILE *out, struct kcas_io_class *cls, bool csv)
 		prio = buffer;
 	}
 
-	fprintf(out, TAG(TABLE_ROW)"%u,%s,%s,%s\n",
-		cls->class_id, cls->info.name, prio, allocation_str);
+	if (cls->info.cache_mode >= ocf_cache_mode_wt &&
+			cls->info.cache_mode < ocf_cache_mode_max) {
+		cache_mode = cache_mode_to_name(cls->info.cache_mode);
+	} else {
+		cache_mode = PARTITION_CACHE_MODE_DEFAULT;
+	}
+
+	fprintf(out, TAG(TABLE_ROW)"%u,%s,%s,%s,%s\n",
+		cls->class_id, cls->info.name, prio, allocation_str,
+		cache_mode);
 
 }
 
@@ -2403,6 +2415,7 @@ enum {
 	part_csv_coll_name,
 	part_csv_coll_prio,
 	part_csv_coll_alloc,
+	part_csv_coll_cache_mode,
 	part_csv_coll_max
 };
 
@@ -2469,7 +2482,8 @@ static inline int partition_get_line(CSVFILE *csv,
 {
 	uint32_t part_id;
 	uint32_t value;
-	const char *id, *name, *prio, *alloc;
+	int cache_mode;
+	const char *id, *name, *prio, *alloc, *mode;
 
 	id = partition_get_csv_col(csv, part_csv_coll_id, error_col);
 	if (!id) {
@@ -2485,6 +2499,10 @@ static inline int partition_get_line(CSVFILE *csv,
 	}
 	alloc = partition_get_csv_col(csv, part_csv_coll_alloc, error_col);
 	if (!alloc) {
+		return FAILURE;
+	}
+	mode = partition_get_csv_col(csv, part_csv_coll_cache_mode, error_col);
+	if (!mode) {
 		return FAILURE;
 	}
 
@@ -2553,7 +2571,19 @@ static inline int partition_get_line(CSVFILE *csv,
 	if (calculate_max_allocation(cnfg->cache_id, alloc, &value) == FAILURE)
 		return FAILURE;
 
-	cnfg->info[part_id].cache_mode = ocf_cache_mode_max;
+	/* Validate cache mode - "default": follow the cache mode */
+	*error_col = part_csv_coll_cache_mode;
+	if (!strncmp(mode, PARTITION_CACHE_MODE_DEFAULT, MAX_STR_LEN)) {
+		cache_mode = ocf_cache_mode_max;
+	} else {
+		cache_mode = validate_str_cache_mode(mode);
+		if (cache_mode < 0) {
+			cas_printf(LOG_ERR, "Invalid cache mode '%s'\n", mode);
+			return FAILURE;
+		}
+	}
+
+	cnfg->info[part_id].cache_mode = cache_mode;
 	cnfg->info[part_id].min_size = 0;
 	cnfg->info[part_id].max_size = value;
 
