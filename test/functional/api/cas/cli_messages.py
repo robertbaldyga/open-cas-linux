@@ -272,8 +272,19 @@ illegal_io_class_invalid_allocation_number = [
     r"Cannot parse configuration file - error in line 2 in column 4 \(Allocation\)\."
 ]
 
+illegal_io_class_invalid_cache_mode = [
+    r"Invalid cache mode '.*'\n"
+    r"Cannot parse configuration file - error in line 2 in column 5 \(Cache mode\)\."
+]
+
 malformed_io_class_header = [
     r"Cannot parse configuration file - unknown column \"value_template\"\.\n"
+    r"Failed to parse I/O classes configuration file header\. It is either malformed or missing\.\n"
+    r"Please consult Admin Guide to check how columns in configuration file should be named\."
+]
+
+missing_io_class_header_column = [
+    r"Cannot parse configuration file - missing column \"value_template\"\.\n"
     r"Failed to parse I/O classes configuration file header\. It is either malformed or missing\.\n"
     r"Please consult Admin Guide to check how columns in configuration file should be named\."
 ]

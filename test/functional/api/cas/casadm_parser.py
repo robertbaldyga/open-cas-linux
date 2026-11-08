@@ -262,7 +262,13 @@ def get_io_class_list(cache_id: int) -> list:
     casadm_output.pop(0)  # Remove header
     for line in casadm_output:
         values = line.split(",")
-        ioclass = IoClass(int(values[0]), values[1], int(values[2]), values[3])
+        ioclass = IoClass(
+            int(values[0]),
+            values[1],
+            int(values[2]),
+            values[3],
+            IoClass.cache_mode_from_str(values[4]),
+        )
         ret.append(ioclass)
     return ret
 

@@ -14,6 +14,7 @@ import string
 from datetime import timedelta
 from packaging import version
 
+from api.cas.cache_config import CacheMode
 from core.test_run import TestRun
 from test_tools.fs_tools import write_file
 from test_tools.os_tools import get_kernel_version
@@ -29,7 +30,9 @@ PREFETCH_IO_CLASS_ID = 33
 PREFETCH_IO_CLASS_RULE = "prefetch"
 MAX_USER_IO_CLASS_ID = 32
 MAX_CLASSIFICATION_DELAY = timedelta(seconds=6)
-IO_CLASS_CONFIG_HEADER = "IO class id,IO class name,Eviction priority,Allocation"
+IO_CLASS_CONFIG_HEADER = "IO class id,IO class name,Eviction priority,Allocation,Cache mode"
+# Cache mode value of an IO class following the cache mode
+IO_CLASS_CACHE_MODE_DEFAULT = "default"
 
 
 @functools.total_ordering
@@ -40,43 +43,40 @@ class IoClass:
         rule: str = "",
         priority: int = None,
         allocation: str = "1.00",
+        cache_mode: CacheMode = None,
     ):
         self.id = class_id
         self.rule = rule
         self.priority = priority
         self.allocation = allocation
+        # None: no cache mode of its own, the IO class follows the cache mode
+        self.cache_mode = cache_mode
 
     def __str__(self):
         return (
             f'{self.id},{self.rule},{"" if self.priority is None else self.priority}'
-            f",{self.allocation}"
+            f",{self.allocation},{self.cache_mode_str()}"
         )
+
+    def cache_mode_str(self):
+        if self.cache_mode is None:
+            return IO_CLASS_CACHE_MODE_DEFAULT
+        return self.cache_mode.name.lower()
+
+    @staticmethod
+    def cache_mode_from_str(cache_mode: str):
+        if cache_mode == IO_CLASS_CACHE_MODE_DEFAULT:
+            return None
+        return CacheMode[cache_mode.upper()]
+
+    def _key(self):
+        return (self.id, self.rule, self.priority, self.allocation, self.cache_mode_str())
 
     def __eq__(self, other):
-        return (
-            self.id,
-            self.rule,
-            self.priority,
-            self.allocation,
-        ) == (
-            other.id,
-            other.rule,
-            other.priority,
-            other.allocation,
-        )
+        return self._key() == other._key()
 
     def __lt__(self, other):
-        return (
-            self.id,
-            self.rule,
-            self.priority,
-            self.allocation,
-        ) < (
-            other.id,
-            other.rule,
-            other.priority,
-            other.allocation,
-        )
+        return self._key() < other._key()
 
     @staticmethod
     def from_string(ioclass_str: str):
@@ -86,6 +86,7 @@ class IoClass:
             rule=parts[1],
             priority=int(parts[2]),
             allocation="%.2f" % float(parts[3]),
+            cache_mode=IoClass.cache_mode_from_str(parts[4]),
         )
 
     @staticmethod
@@ -137,6 +138,7 @@ class IoClass:
             "name": "IO class name",
             "eviction_prio": "Eviction priority",
             "allocation": "Allocation",
+            "cache_mode": "Cache mode",
         }
 
     @staticmethod
@@ -265,8 +267,9 @@ def add_ioclass(
     eviction_priority: int,
     allocation,
     ioclass_config_path: str = default_config_file_path,
+    cache_mode: CacheMode = None,
 ):
-    new_ioclass = f"{ioclass_id},{rule},{eviction_priority},{allocation}"
+    new_ioclass = str(IoClass(ioclass_id, rule, eviction_priority, allocation, cache_mode))
     TestRun.LOGGER.info(f"Adding rule {new_ioclass} to config file {ioclass_config_path}")
 
     output = TestRun.executor.run(f'echo "{new_ioclass}" >> {ioclass_config_path}')

@@ -16,53 +16,61 @@ from test_tools.fs_tools import read_file, write_file
 from type_def.size import Unit, Size
 from tests.io_class.io_class_common import prepare, ioclass_config_path
 
-headerless_configuration = "1,unclassified,22,1.00"
-double_io_class_configuration = "2,file_size:le:4096,1,1.00\n2,file_size:le:4096,1,1.00"
+headerless_configuration = "1,unclassified,22,1.00,default"
+double_io_class_configuration = (
+    "2,file_size:le:4096,1,1.00,default\n2,file_size:le:4096,1,1.00,default"
+)
 malformed_io_class_allocation = "malformed allocation"
 malformed_io_class_eviction_priority = "malformed eviction priority"
 malformed_io_class_id = "malformed IO class id"
 malformed_io_class_name = "malformed IO class name"
+malformed_io_class_cache_mode = "malformed cache mode"
 
 # Illegal configurations and expected error messages:
 illegal_io_class_configurations = {
-    # Use only 0, 1, 2, 3 and 5 parameters number in one line as integer values
+    # Use only 0, 1, 2 and 3 of the first four parameters as integer values
     # 1 parameter
-    ",,,1": cli_messages.illegal_io_class_config_L2C1,
-    ",,1,": cli_messages.illegal_io_class_config_L2C1,
-    ",1,,": cli_messages.illegal_io_class_config_L2C1,
-    "1,,,": cli_messages.illegal_io_class_config_L2C2,
+    ",,,1,default": cli_messages.illegal_io_class_config_L2C1,
+    ",,1,,default": cli_messages.illegal_io_class_config_L2C1,
+    ",1,,,default": cli_messages.illegal_io_class_config_L2C1,
+    "1,,,,default": cli_messages.illegal_io_class_config_L2C2,
     # 2 parameters
-    ",,1,1": cli_messages.illegal_io_class_config_L2C1,
-    ",1,,1": cli_messages.illegal_io_class_config_L2C1,
-    ",1,1,": cli_messages.illegal_io_class_config_L2C1,
-    "1,,1,": cli_messages.illegal_io_class_config_L2C2,
-    "1,,,1": cli_messages.illegal_io_class_config_L2C2,
-    "1,1,,": cli_messages.illegal_io_class_config_L2C4,
+    ",,1,1,default": cli_messages.illegal_io_class_config_L2C1,
+    ",1,,1,default": cli_messages.illegal_io_class_config_L2C1,
+    ",1,1,,default": cli_messages.illegal_io_class_config_L2C1,
+    "1,,1,,default": cli_messages.illegal_io_class_config_L2C2,
+    "1,,,1,default": cli_messages.illegal_io_class_config_L2C2,
+    "1,1,,,default": cli_messages.illegal_io_class_config_L2C4,
     # 3 parameters
-    ",1,1,1": cli_messages.illegal_io_class_config_L2C1,
-    "1,,1,1": cli_messages.illegal_io_class_config_L2C2,
-    "1,1,1,": cli_messages.illegal_io_class_config_L2C4,
-    # 5 parameters
-    "1,1,1,1,1": cli_messages.illegal_io_class_config_L2,
+    ",1,1,1,default": cli_messages.illegal_io_class_config_L2C1,
+    "1,,1,1,default": cli_messages.illegal_io_class_config_L2C2,
+    "1,1,1,,default": cli_messages.illegal_io_class_config_L2C4,
+    # 4 parameters (no cache mode) and 6 parameters
+    "1,1,1,1": cli_messages.illegal_io_class_config_L2,
+    "1,1,1,1,default,1": cli_messages.illegal_io_class_config_L2,
     # Try to configure IO class ID as: string, negative value or 34
-    "IllegalInput,Superblock,22,1": cli_messages.illegal_io_class_invalid_id,
-    "-2,Superblock,22,1": cli_messages.illegal_io_class_invalid_id_number,
-    "34,Superblock,22,1": cli_messages.illegal_io_class_invalid_id_number,
+    "IllegalInput,Superblock,22,1,default": cli_messages.illegal_io_class_invalid_id,
+    "-2,Superblock,22,1,default": cli_messages.illegal_io_class_invalid_id_number,
+    "34,Superblock,22,1,default": cli_messages.illegal_io_class_invalid_id_number,
     # Try to rename the reserved prefetch IO class or use its name for another IO class
-    "33,Superblock,22,1": cli_messages.illegal_io_class_prefetch_name,
-    "1,prefetch,22,1": cli_messages.illegal_io_class_reserved_prefetch_name,
+    "33,Superblock,22,1,default": cli_messages.illegal_io_class_prefetch_name,
+    "1,prefetch,22,1,default": cli_messages.illegal_io_class_reserved_prefetch_name,
     # Try to use semicolon, dots or new line as csv delimiters
-    "1;1;1;1": cli_messages.illegal_io_class_config_L2,
-    "1.1.1.1": cli_messages.illegal_io_class_config_L2,
-    "1\n1\n1\n1": cli_messages.illegal_io_class_config_L2,
+    "1;1;1;1;default": cli_messages.illegal_io_class_config_L2,
+    "1.1.1.1.default": cli_messages.illegal_io_class_config_L2,
+    "1\n1\n1\n1\ndefault": cli_messages.illegal_io_class_config_L2,
     # Try to configure eviction priority as: string, negative value or 256
-    "1,Superblock,IllegalInput,1": cli_messages.illegal_io_class_invalid_priority,
-    "1,Superblock,-2,1": cli_messages.illegal_io_class_invalid_priority_number,
-    "1,Superblock,256,1": cli_messages.illegal_io_class_invalid_priority_number,
+    "1,Superblock,IllegalInput,1,default": cli_messages.illegal_io_class_invalid_priority,
+    "1,Superblock,-2,1,default": cli_messages.illegal_io_class_invalid_priority_number,
+    "1,Superblock,256,1,default": cli_messages.illegal_io_class_invalid_priority_number,
     # Try to configure allocation as: string, negative value or 2
-    "1,Superblock,22,IllegalInput": cli_messages.illegal_io_class_invalid_allocation,
-    "1,Superblock,255,-2": cli_messages.illegal_io_class_invalid_allocation_number,
-    "1,Superblock,255,2": cli_messages.illegal_io_class_invalid_allocation_number,
+    "1,Superblock,22,IllegalInput,default": cli_messages.illegal_io_class_invalid_allocation,
+    "1,Superblock,255,-2,default": cli_messages.illegal_io_class_invalid_allocation_number,
+    "1,Superblock,255,2,default": cli_messages.illegal_io_class_invalid_allocation_number,
+    # Try to configure cache mode as: string, empty value or upper case name
+    "1,Superblock,22,1,IllegalInput": cli_messages.illegal_io_class_invalid_cache_mode,
+    "1,Superblock,22,1,": cli_messages.illegal_io_class_invalid_cache_mode,
+    "1,Superblock,22,1,WB": cli_messages.illegal_io_class_invalid_cache_mode,
 }
 
 
@@ -175,30 +183,48 @@ def setup_headers():
     correct_name_header = default_header["name"]
     correct_eviction_priority_header = default_header["eviction_prio"]
     correct_allocation_header = default_header["allocation"]
+    correct_cache_mode_header = default_header["cache_mode"]
 
     malformed_io_class_id_header = (
         f"{malformed_io_class_id},"
         f"{correct_name_header},"
         f"{correct_eviction_priority_header},"
-        f"{correct_allocation_header}"
+        f"{correct_allocation_header},"
+        f"{correct_cache_mode_header}"
     )
     malformed_io_class_name_header = (
         f"{correct_id_header},"
         f"{malformed_io_class_name},"
         f"{correct_eviction_priority_header},"
-        f"{correct_allocation_header}"
+        f"{correct_allocation_header},"
+        f"{correct_cache_mode_header}"
     )
     malformed_eviction_priority_header = (
         f"{correct_id_header},"
         f"{correct_name_header},"
         f"{malformed_io_class_eviction_priority},"
-        f"{correct_allocation_header}"
+        f"{correct_allocation_header},"
+        f"{correct_cache_mode_header}"
     )
     malformed_allocation_header = (
         f"{correct_id_header},"
         f"{correct_name_header},"
         f"{correct_eviction_priority_header},"
-        f"{malformed_io_class_allocation}"
+        f"{malformed_io_class_allocation},"
+        f"{correct_cache_mode_header}"
+    )
+    malformed_cache_mode_header = (
+        f"{correct_id_header},"
+        f"{correct_name_header},"
+        f"{correct_eviction_priority_header},"
+        f"{correct_allocation_header},"
+        f"{malformed_io_class_cache_mode}"
+    )
+    missing_cache_mode_header = (
+        f"{correct_id_header},"
+        f"{correct_name_header},"
+        f"{correct_eviction_priority_header},"
+        f"{correct_allocation_header}"
     )
 
     return {
@@ -217,5 +243,13 @@ def setup_headers():
         malformed_allocation_header: [
             m.replace("value_template", malformed_io_class_allocation)
             for m in cli_messages.malformed_io_class_header
+        ],
+        malformed_cache_mode_header: [
+            m.replace("value_template", malformed_io_class_cache_mode)
+            for m in cli_messages.malformed_io_class_header
+        ],
+        missing_cache_mode_header: [
+            m.replace("value_template", correct_cache_mode_header)
+            for m in cli_messages.missing_io_class_header_column
         ],
     }
